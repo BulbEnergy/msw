@@ -286,20 +286,6 @@ function graphQLRequestHandler<QueryType, VariablesType = Record<string, any>>(
       console.log('Response:', loggedResponse)
       console.groupEnd()
     },
-
-    getMetaInfo() {
-      const header =
-        expectedOperationType === 'all'
-          ? `[graphql] ${expectedOperationType} (origin: ${mask.toString()})`
-          : `[graphql] ${expectedOperationType} ${expectedOperationName} (origin: ${mask.toString()})`
-
-      return {
-        type: 'graphql',
-        header,
-        mask,
-        callFrame,
-      }
-    },
   }
 }
 

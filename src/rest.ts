@@ -75,12 +75,12 @@ const createRestHandler = (method: RESTMethods) => {
   >(
     mask: Mask,
     resolver: ResponseResolver<
-      MockedRequest<RequestBodyType, RequestParamsType>,
+      MockedRequest<RequestBodyType>,
       typeof restContext,
       ResponseBodyType
     >,
   ): RequestHandler<
-    MockedRequest<RequestBodyType, RequestParamsType>,
+    MockedRequest<RequestBodyType>,
     typeof restContext,
     ParsedRestRequest,
     MockedRequest<RequestBodyType>,
@@ -112,6 +112,7 @@ const createRestHandler = (method: RESTMethods) => {
           params,
         }
       },
+
       resolver,
 
       defineContext() {
@@ -164,15 +165,6 @@ ${queryParams
         })
         console.log('Response', loggedResponse)
         console.groupEnd()
-      },
-
-      getMetaInfo() {
-        return {
-          type: 'rest',
-          header: `[rest] ${method} ${mask.toString()}`,
-          mask,
-          callFrame,
-        }
       },
     }
   }

@@ -6,6 +6,7 @@ import { SharedOptions } from '../sharedOptions'
 import { ServiceWorkerMessage } from '../utils/createBroadcastChannel'
 import { createStart } from './start/createStart'
 import { createStop } from './stop/createStop'
+import { RequestHandler as RequestHandlerClass } from '../utils/handlers/2.0/RequestHandler'
 
 export type Mask = RegExp | string
 export type ResolvedMask = Mask | URL
@@ -89,7 +90,7 @@ export interface SetupWorkerInternalContext {
   startOptions: StartOptions | undefined
   worker: ServiceWorker | null
   registration: ServiceWorkerRegistration | null
-  requestHandlers: RequestHandler<any, any>[]
+  requestHandlers: RequestApplicator[]
   emitter: StrictEventEmitter<WorkerLifecycleEventsMap>
   keepAliveInterval?: number
   workerChannel: {
@@ -173,6 +174,7 @@ export type StartOptions = SharedOptions & {
   findWorker?: FindWorker
 }
 
+export type RequestApplicator = RequestHandlerClass
 export type RequestHandlersList = RequestHandler<any, any, any, any, any>[]
 
 export type ResponseWithSerializedHeaders<BodyType = any> = Omit<
@@ -200,7 +202,7 @@ export interface SetupWorkerApi {
    * @param {RequestHandler[]} handlers List of runtime request handlers.
    * @see {@link https://mswjs.io/docs/api/setup-worker/use `worker.use()`}
    */
-  use: (...handlers: RequestHandlersList) => void
+  use: (...handlers: RequestApplicator[]) => void
 
   /**
    * Marks all request handlers that respond using `res.once()` as unused.
@@ -213,7 +215,7 @@ export interface SetupWorkerApi {
    * @param {RequestHandler[]} nextHandlers List of the new initial request handlers.
    * @see {@link https://mswjs.io/docs/api/setup-worker/reset-handlers `worker.resetHandlers()`}
    */
-  resetHandlers: (...nextHandlers: RequestHandlersList) => void
+  resetHandlers: (...nextHandlers: RequestApplicator[]) => void
 
   /**
    * Lists all active request handlers.

@@ -5,9 +5,15 @@ export function getCallFrame() {
   try {
     const inspectionError = new Error()
     inspectionError.name = 'Inspection Error'
+
+    /**
+     * @todo Hey, no need to throw this, access the "error.stack".
+     */
     throw inspectionError
   } catch (error) {
     const frames: string[] = error.stack.split('\n')
+
+    console.log(frames)
 
     // Get the first frame that doesn't reference the library's internal trace.
     // Assume that frame is the invocation frame.
@@ -15,12 +21,15 @@ export function getCallFrame() {
       return !/(node_modules)?\/lib\/(umd|esm)\//.test(frame)
     })
 
+    console.log(declarationFrame)
+
     if (!declarationFrame) {
       return
     }
 
     // Extract file reference from the stack frame.
-    const [, declarationPath] = declarationFrame.match(/\((.+?)\)$/) || []
+    const [, declarationPath] =
+      declarationFrame.match(/.+? (\/.+?\d+:\d+)/) || []
     return declarationPath
   }
 }

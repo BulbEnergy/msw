@@ -1,5 +1,5 @@
-import * as cookieUtils from 'cookie'
 import { bold } from 'chalk'
+import * as cookieUtils from 'cookie'
 import { Headers, flattenHeadersObject } from 'headers-utils'
 import { StrictEventEmitter } from 'strict-event-emitter'
 import {
@@ -7,7 +7,7 @@ import {
   MockedResponse as MockedInterceptedResponse,
   Interceptor,
 } from 'node-request-interceptor'
-import { RequestHandlersList } from '../setupWorker/glossary'
+import { RequestApplicator, RequestHandlersList } from '../setupWorker/glossary'
 import { MockedRequest } from '../utils/handlers/requestHandler'
 import { getResponse } from '../utils/getResponse'
 import { parseBody } from '../utils/request/parseBody'
@@ -17,7 +17,6 @@ import { onUnhandledRequest } from '../utils/request/onUnhandledRequest'
 import { ServerLifecycleEventsMap, SetupServerApi } from './glossary'
 import { SharedOptions } from '../sharedOptions'
 import { uuidv4 } from '../utils/internal/uuidv4'
-import { request } from 'express'
 
 const DEFAULT_LISTEN_OPTIONS: SharedOptions = {
   onUnhandledRequest: 'bypass',
@@ -31,7 +30,7 @@ export function createSetupServer(...interceptors: Interceptor[]) {
   const emitter = new StrictEventEmitter<ServerLifecycleEventsMap>()
 
   return function setupServer(
-    ...requestHandlers: RequestHandlersList
+    ...requestHandlers: RequestApplicator[]
   ): SetupServerApi {
     requestHandlers.forEach((handler) => {
       if (Array.isArray(handler))
@@ -50,7 +49,7 @@ export function createSetupServer(...interceptors: Interceptor[]) {
 
     // Store the list of request handlers for the current server instance,
     // so it could be modified at a runtime.
-    let currentHandlers: RequestHandlersList = [...requestHandlers]
+    let currentHandlers: RequestApplicator[] = [...requestHandlers]
 
     interceptor.on('response', (req, res) => {
       const requestId = req.headers?.['x-msw-request-id'] as string
@@ -91,7 +90,6 @@ export function createSetupServer(...interceptors: Interceptor[]) {
             body: parseBody(req.body, requestHeaders),
             headers: requestHeaders,
             cookies: {},
-            params: {},
             redirect: 'manual',
             referrer: '',
             keepalive: false,
@@ -176,11 +174,11 @@ export function createSetupServer(...interceptors: Interceptor[]) {
 
       printHandlers() {
         currentHandlers.forEach((handler) => {
-          const meta = handler.getMetaInfo()
+          const { header, callFrame } = handler.info
 
           console.log(`\
-${bold(meta.header)}
-  Declaration: ${meta.callFrame}
+${bold(header)}
+  Declaration: ${callFrame}
 `)
         })
       },
