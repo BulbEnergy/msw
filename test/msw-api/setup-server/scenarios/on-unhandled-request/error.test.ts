@@ -23,11 +23,9 @@ test('errors on unhandled request when using the "error" value', async () => {
   const getResponse = () => fetch('https://test.mswjs.io')
 
   await expect(getResponse()).rejects.toThrow(`\
-request to https://test.mswjs.io/ failed, reason: [MSW] Error: captured a GET https://test.mswjs.io/ request without a corresponding request handler.
+request to https://test.mswjs.io/ failed, reason: [MSW] Error: captured a request without a matching request handler:
 
-  If you wish to intercept this request, consider creating a request handler for it:
+  • GET https://test.mswjs.io/
 
-  rest.get('https://test.mswjs.io/', (req, res, ctx) => {
-    return res(ctx.text('body'))
-  })`)
+If you still wish to intercept this unhandled request, please create a request handler for it. Read more: https://mswjs.io/docs/getting-started/mocks.`)
 })
