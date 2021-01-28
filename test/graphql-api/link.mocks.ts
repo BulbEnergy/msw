@@ -9,7 +9,7 @@ const worker = setupWorker(
       ctx.data({
         user: {
           id: '46cfe8ff-a79b-42af-9699-b56e2239d1bb',
-          username: req.variables.username,
+          username: req.body.variables.username,
         },
       }),
     )
@@ -18,7 +18,7 @@ const worker = setupWorker(
     return res(
       ctx.data({
         bankAccount: {
-          totalFunds: 100 + req.variables.amount,
+          totalFunds: 100 + req.body.variables.amount,
         },
       }),
     )
@@ -29,7 +29,7 @@ const worker = setupWorker(
       ctx.data({
         user: {
           id: '46cfe8ff-a79b-42af-9699-b56e2239d1bb',
-          username: req.variables.username,
+          username: req.body.variables.username,
         },
       }),
     )

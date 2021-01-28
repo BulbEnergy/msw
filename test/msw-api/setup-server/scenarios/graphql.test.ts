@@ -27,7 +27,8 @@ mutation Login($username: String!) {
 describe('setupServer / graphql', () => {
   const server = setupServer(
     graphql.query('GetUserDetail', (req, res, ctx) => {
-      const { userId } = req.variables
+      if (Array.isArray(req.body)) return
+      const { userId } = req.body.variables
 
       return res(
         ctx.data({
@@ -40,7 +41,9 @@ describe('setupServer / graphql', () => {
       )
     }),
     graphql.mutation('Login', (req, res, ctx) => {
-      const { username } = req.variables
+      if (Array.isArray(req.body)) return
+
+      const { username } = req.body.variables
 
       return res(
         ctx.errors([

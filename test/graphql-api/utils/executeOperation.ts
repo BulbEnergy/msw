@@ -19,9 +19,9 @@ export const graphqlOperation = (url: string) => {
   }
 }
 
-interface GraphQLRequestPayload {
+interface GraphQLRequestPayload<VariablesType = Record<string, any>> {
   query: string
-  variables?: Record<string, any>
+  variables?: VariablesType
 }
 
 interface GraphQLOperationOptions {
@@ -29,51 +29,57 @@ interface GraphQLOperationOptions {
   method?: 'GET' | 'POST'
 }
 
+const getUrl = ({ uri, method, payload }) => {
+  const url = new URL(uri)
+
+  if (method === 'GET') {
+    if (Array.isArray(payload)) {
+      throw new Error(`Can't use Query method on batch operation`)
+    } else {
+      const { query, variables } = payload
+      url.searchParams.set('query', query)
+
+      if (variables) {
+        url.searchParams.set('variables', JSON.stringify(variables))
+      }
+    }
+  }
+
+  return url.toString()
+}
+
+const buildFetch = (url: string, method: string, body: string) => {
+  return fetch(
+    url,
+    Object.assign(
+      {},
+      method === 'POST' && {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body,
+      },
+    ),
+  )
+}
+
 /**
  * Executes a GraphQL operation in the given Puppeteer context.
  */
 export const executeOperation = async (
   page: Page,
-  payload: GraphQLRequestPayload,
+  payload: GraphQLRequestPayload | GraphQLRequestPayload[],
   options?: GraphQLOperationOptions,
 ) => {
   const { uri = HOSTNAME, method = 'POST' } = options || {}
-  const { query, variables } = payload
-  const url = new URL(uri)
-
-  if (method === 'GET') {
-    url.searchParams.set('query', query)
-
-    if (variables) {
-      url.searchParams.set('variables', JSON.stringify(variables))
-    }
-  }
-
-  const urlString = url.toString()
+  const urlString = getUrl({ uri, method, payload })
 
   const responsePromise = page.evaluate(
-    (url, method, query, variables) => {
-      return fetch(
-        url,
-        Object.assign(
-          {},
-          method === 'POST' && {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              query,
-              variables,
-            }),
-          },
-        ),
-      )
-    },
+    buildFetch,
     urlString,
     method,
-    payload.query,
-    payload.variables,
+    JSON.stringify(payload),
   )
 
   return new Promise<Response>((resolve, reject) => {

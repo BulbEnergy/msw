@@ -37,7 +37,7 @@ test('falls through all relevant request handlers until response is returned', a
 
   expect(log).toBeCalledWith('[get] first')
   expect(log).toBeCalledWith('[get] second')
-  expect(log).not.toBeCalledWith('[get] third')
+  expect(log).toBeCalledWith('[get] third')
 })
 
 test('falls through all relevant handler even if none returns response', async () => {

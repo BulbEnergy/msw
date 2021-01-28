@@ -5,6 +5,7 @@ import { executeOperation } from './utils/executeOperation'
 function createRuntime() {
   return runBrowserWith(path.resolve(__dirname, 'operation.mocks.ts'))
 }
+
 test('matches GraphQL queries', async () => {
   const runtime = await createRuntime()
   const GET_USER_QUERY = `
@@ -87,6 +88,62 @@ test('matches only valid GraphQL requests', async () => {
       query: 'test',
     },
   })
+
+  return runtime.cleanup()
+})
+
+test('matches batch GraphQL queries', async () => {
+  const runtime = await createRuntime()
+
+  const GET_USER_QUERY = `
+    query GetUser($id: String!) {
+      query
+      variables
+    }
+  `
+  const GET_HEALTH_QUERY = `
+    query Health {
+      health {
+        self
+        thirdParty
+        api
+      }
+    }
+  `
+
+  const res = await executeOperation(runtime.page, [
+    {
+      query: GET_USER_QUERY,
+      variables: {
+        id: 'abc-123',
+      },
+    },
+    {
+      query: GET_HEALTH_QUERY,
+    },
+  ])
+
+  const body = await res.json()
+
+  expect(Array.isArray(body)).toBe(true)
+  if (!Array.isArray(body)) return runtime.cleanup()
+
+  expect(body).toEqual([
+    {
+      data: {
+        query: GET_USER_QUERY,
+        variables: {
+          id: 'abc-123',
+        },
+      },
+    },
+    {
+      data: {
+        query: GET_HEALTH_QUERY,
+        variables: {},
+      },
+    },
+  ])
 
   return runtime.cleanup()
 })

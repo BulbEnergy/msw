@@ -20,6 +20,12 @@
 
 <p align="center">Mock Service Worker (MSW) is an API mocking library for browser and Node.</p>
 
+**NOTE**
+
+This is a (hopefully) temporary fork of the original [MSW](https://github.com/mswjs/msw) whilst the original package team works on adding support for batched GraphQL queries.
+
+**TODO** There is a minor difference in signature for graphql handlers in this version - update with changelog
+
 ## Features
 
 - **Seamless**. Dedicated layer of requests interception at your disposal. Keep your application's code and tests unaware whether something is mocked or not.

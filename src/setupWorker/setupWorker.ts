@@ -8,6 +8,10 @@ import { createStop } from './stop/createStop'
 import * as requestHandlerUtils from '../utils/handlers/requestHandlerUtils'
 import { isNodeProcess } from '../utils/internal/isNodeProcess'
 import { ServiceWorkerMessage } from '../utils/createBroadcastChannel'
+import {
+  BatchHandler,
+  defaultBatchHandler,
+} from '../utils/handlers/batchHandler'
 
 interface Listener {
   target: EventTarget
@@ -31,6 +35,7 @@ export function setupWorker(
   const context: SetupWorkerInternalContext = {
     worker: null,
     registration: null,
+    batchHandler: defaultBatchHandler,
     requestHandlers: [...requestHandlers],
     events: {
       addListener(target: EventTarget, event: string, callback: EventListener) {
@@ -95,6 +100,10 @@ export function setupWorker(
 
     use(...handlers) {
       requestHandlerUtils.use(context.requestHandlers, ...handlers)
+    },
+
+    setBatchHandler(batchHandler: BatchHandler) {
+      context.batchHandler = batchHandler
     },
 
     restoreHandlers() {

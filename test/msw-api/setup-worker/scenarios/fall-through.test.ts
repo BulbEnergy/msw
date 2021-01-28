@@ -32,9 +32,9 @@ test('falls through all relevant request handlers until response is returned', a
   expect(firstHandlerMessage).toBeTruthy()
   expect(secondHandlerMessage).toBeTruthy()
 
-  // The third handler is listed after the one that returnes the response,
-  // so it must never execute (response is sent).
-  expect(thirdHandlerMessage).toBeFalsy()
+  // The third handler is listed after the one that returns the response,
+  // but in some cases (eg. batched GraphQL) we need all responses so it should still fire
+  expect(thirdHandlerMessage).toBeTruthy()
 
   await runtime.cleanup()
 })

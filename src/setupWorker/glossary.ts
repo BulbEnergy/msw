@@ -1,8 +1,9 @@
 import { HeadersList } from 'headers-utils'
-import { RequestHandler } from '../utils/handlers/requestHandler'
 import { MockedResponse } from '../response'
 import { SharedOptions } from '../sharedOptions'
 import { ServiceWorkerMessage } from '../utils/createBroadcastChannel'
+import { BatchHandler } from '../utils/handlers/batchHandler'
+import { RequestHandler } from '../utils/handlers/requestHandler'
 import { createStart } from './start/createStart'
 import { createStop } from './stop/createStop'
 
@@ -13,6 +14,7 @@ export interface SetupWorkerInternalContext {
   worker: ServiceWorker | null
   registration: ServiceWorkerRegistration | null
   requestHandlers: RequestHandler<any, any>[]
+  batchHandler: BatchHandler
   keepAliveInterval?: number
   events: {
     /**
@@ -102,4 +104,9 @@ export interface SetupWorkerApi {
    * Lists all active request handlers.
    */
   printHandlers: () => void
+
+  /**
+   * Performs final processing on items in case of batched posts
+   */
+  setBatchHandler: (batchHandler: BatchHandler) => void
 }

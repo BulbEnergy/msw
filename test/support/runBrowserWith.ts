@@ -105,7 +105,7 @@ export const runBrowserWith = async (
       browser
         .close()
         .then(() => {
-          server.close(resolve)
+          server.close(() => resolve(true))
         })
         .catch(reject)
     })

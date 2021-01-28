@@ -5,7 +5,7 @@ import {
   AsyncResponseResolverReturnType,
 } from './utils/handlers/requestHandler'
 import { MockedResponse, ResponseComposition } from './response'
-import { Mask } from './setupWorker/glossary'
+import { Mask, ResponseWithSerializedHeaders } from './setupWorker/glossary'
 import { set } from './context/set'
 import { status } from './context/status'
 import { delay } from './context/delay'
@@ -21,6 +21,7 @@ import { getStatusCodeColor } from './utils/logging/getStatusCodeColor'
 import { jsonParse } from './utils/internal/jsonParse'
 import { matchRequestUrl } from './utils/matching/matchRequestUrl'
 import { getCallFrame } from './utils/internal/getCallFrame'
+import { runOrFind, runOrMap } from './utils/fp'
 
 type ExpectedOperationTypeNode = OperationTypeNode | 'all'
 
@@ -30,8 +31,7 @@ export type GraphQLMockedRequest<VariablesType = Record<string, any>> = Omit<
   MockedRequest,
   'body'
 > & {
-  body: (GraphQLRequestPayload<VariablesType> & Record<string, any>) | undefined
-  variables: VariablesType
+  body: GraphQLRequestPayload<VariablesType> | undefined
 }
 
 // GraphQL related context should contain utility functions
@@ -56,25 +56,50 @@ export const graphqlContext: GraphQLMockedContext<any> = {
 }
 
 export type GraphQLResponseResolver<QueryType, VariablesType> = (
-  req: GraphQLMockedRequest<VariablesType>,
+  req: GraphQLPublicRequest<VariablesType>,
   res: ResponseComposition,
   context: GraphQLMockedContext<QueryType>,
 ) => AsyncResponseResolverReturnType<MockedResponse>
 
-export interface GraphQLRequestPayload<VariablesType> {
+export type GraphQLRequestPayloadSingle<VariablesType> = {
   query: string
+  operationName?: string
   variables?: VariablesType
 }
 
-export interface GraphQLRequestParsedResult<VariablesType> {
+export type GraphQLRequestPayload<VariablesType> =
+  | GraphQLRequestPayloadSingle<VariablesType>
+  | GraphQLRequestPayloadSingle<VariablesType>[]
+
+export type GraphQLRequestParsedResultSingle<VariablesType> = {
   operationType: OperationTypeNode
-  operationName: string | undefined
-  variables: VariablesType | undefined
+  query: string
+  operationName?: string
+  variables?: VariablesType
 }
 
+export type GraphQLRequestParsedResult<VariablesType> =
+  | GraphQLRequestParsedResultSingle<VariablesType>
+  | GraphQLRequestParsedResultSingle<VariablesType>[]
+
+type GraphQLPublicRequestBodySingle<
+  VariablesType = Record<string, any>
+> = GraphQLRequestPayloadSingle<VariablesType> & {
+  parsed: GraphQLRequestParsedResultSingle<VariablesType>
+}
+
+export type GraphQLPublicRequest<VariablesType = Record<string, any>> = Omit<
+  GraphQLMockedRequest<VariablesType>,
+  'body'
+> & {
+  body:
+    | GraphQLPublicRequestBodySingle
+    | GraphQLPublicRequestBodySingle[]
+    | undefined
+}
 interface ParsedQueryPayload {
   operationType: OperationTypeNode
-  operationName: string | undefined
+  operationName?: string
 }
 
 function parseQuery(
@@ -96,6 +121,92 @@ function parseQuery(
   }
 }
 
+const defaultVariables = <VariablesType>(
+  body: GraphQLRequestPayloadSingle<VariablesType>,
+) => {
+  return body.variables || ({} as VariablesType)
+}
+
+const matchParsed = <VariablesType>(
+  parsedRequestResults: GraphQLRequestParsedResult<VariablesType>,
+  body: GraphQLRequestPayloadSingle<VariablesType>,
+) => {
+  return (
+    runOrFind(
+      (parsedRequest) => parsedRequest.query === body.query,
+      parsedRequestResults,
+    ) || ({} as GraphQLRequestParsedResultSingle<VariablesType>)
+  )
+}
+
+const parseRequest = <VariablesType = Record<string, any>>(
+  expectedOperationType: ExpectedOperationTypeNode,
+  body: GraphQLRequestPayloadSingle<VariablesType>,
+): GraphQLRequestParsedResult<VariablesType> | null => {
+  const { query, variables } = body
+
+  if (!query) return null
+
+  const { operationType, operationName } = parseQuery(
+    query,
+    expectedOperationType,
+  )
+
+  return {
+    operationType,
+    operationName,
+    variables,
+    query,
+  }
+}
+
+const buildPublic = <VariablesType>(
+  parsed: GraphQLRequestParsedResult<VariablesType>,
+  body: GraphQLRequestPayloadSingle<VariablesType>,
+) => {
+  return {
+    ...body,
+    variables: defaultVariables(body),
+    parsed: matchParsed(parsed, body),
+  }
+}
+
+const logHandler = <QueryType, VariablesType = Record<string, any>>(
+  req: GraphQLPublicRequest<VariablesType>,
+  res: ResponseWithSerializedHeaders,
+  handler: RequestHandler<
+    GraphQLMockedRequest<VariablesType>,
+    GraphQLMockedContext<QueryType>,
+    GraphQLRequestParsedResult<VariablesType>,
+    GraphQLPublicRequest<VariablesType>
+  >,
+  parsed: GraphQLRequestParsedResultSingle<VariablesType>,
+) => {
+  const { operationType, operationName } = parsed
+  const loggedRequest = prepareRequest(req)
+  const loggedResponse = prepareResponse(res)
+
+  console.groupCollapsed(
+    '[MSW] %s %s (%c%s%c)',
+    getTimestamp(),
+    operationName,
+    `color:${getStatusCodeColor(res.status)}`,
+    res.status,
+    'color:inherit',
+  )
+  console.log('Request:', loggedRequest)
+  console.log('Handler:', {
+    operationType,
+    operationName,
+    predicate: handler.predicate(
+      req as GraphQLMockedRequest<VariablesType>,
+      parsed,
+    ),
+  })
+  console.log('Response:', loggedResponse)
+  console.groupEnd()
+}
+
 function graphQLRequestHandler<QueryType, VariablesType = Record<string, any>>(
   expectedOperationType: ExpectedOperationTypeNode,
   expectedOperationName: GraphQLRequestHandlerSelector,
@@ -104,7 +215,8 @@ function graphQLRequestHandler<QueryType, VariablesType = Record<string, any>>(
 ): RequestHandler<
   GraphQLMockedRequest<VariablesType>,
   GraphQLMockedContext<QueryType>,
-  GraphQLRequestParsedResult<VariablesType>
+  GraphQLRequestParsedResult<VariablesType>,
+  GraphQLPublicRequest<VariablesType>
 > {
   const callFrame = getCallFrame()
 
@@ -127,37 +239,18 @@ function graphQLRequestHandler<QueryType, VariablesType = Record<string, any>>(
             ? jsonParse<VariablesType>(variablesString)
             : ({} as VariablesType)
 
-          const { operationType, operationName } = parseQuery(
-            query,
-            expectedOperationType,
-          )
-
-          return {
-            operationType,
-            operationName,
-            variables,
-          }
+          return parseRequest(expectedOperationType, { query, variables })
         }
 
         case 'POST': {
-          if (!req.body?.query) {
+          if (req.body === undefined) {
             return null
           }
 
-          const { query, variables } = req.body as GraphQLRequestPayload<
-            VariablesType
-          >
-
-          const { operationType, operationName } = parseQuery(
-            query,
-            expectedOperationType,
-          )
-
-          return {
-            operationType,
-            operationName,
-            variables,
-          }
+          return runOrMap(
+            (body) => parseRequest<VariablesType>(expectedOperationType, body),
+            req.body,
+          ) as GraphQLRequestParsedResult<VariablesType>
         }
 
         default:
@@ -166,14 +259,29 @@ function graphQLRequestHandler<QueryType, VariablesType = Record<string, any>>(
     },
 
     getPublicRequest(req, parsed) {
+      if (req.body === undefined) {
+        return {
+          ...req,
+          body: undefined,
+        }
+      }
+
       return {
         ...req,
-        variables: parsed.variables || ({} as VariablesType),
+        body: runOrMap(
+          (body) => buildPublic<VariablesType>(parsed, body),
+          req.body,
+        ),
       }
     },
 
     predicate(req, parsed) {
-      if (!parsed || !parsed.operationName) {
+      const toCheck = Array.isArray(parsed) ? parsed : [parsed]
+
+      if (
+        !parsed ||
+        toCheck.some((r) => !r.operationName) // Handle batch requests
+      ) {
         return false
       }
 
@@ -181,39 +289,25 @@ function graphQLRequestHandler<QueryType, VariablesType = Record<string, any>>(
       // in case of an endpoint-specific request handler.
       const hasMatchingMask = matchRequestUrl(req.url, mask)
 
-      const isMatchingOperation =
+      const hasMatchingOperations = [...toCheck].some((r) =>
         expectedOperationName instanceof RegExp
-          ? expectedOperationName.test(parsed.operationName)
-          : expectedOperationName === parsed.operationName
+          ? expectedOperationName.test(r.operationName!)
+          : expectedOperationName === r.operationName,
+      )
 
-      return hasMatchingMask.matches && isMatchingOperation
+      return hasMatchingMask.matches && hasMatchingOperations
     },
 
-    defineContext() {
-      return graphqlContext
+    defineContext(_req) {
+      return { ...graphqlContext }
     },
 
     log(req, res, handler, parsed) {
-      const { operationType, operationName } = parsed
-      const loggedRequest = prepareRequest(req)
-      const loggedResponse = prepareResponse(res)
+      const toLog = Array.isArray(parsed) ? parsed : [parsed]
 
-      console.groupCollapsed(
-        '[MSW] %s %s (%c%s%c)',
-        getTimestamp(),
-        operationName,
-        `color:${getStatusCodeColor(res.status)}`,
-        res.status,
-        'color:inherit',
+      toLog.forEach((p) =>
+        logHandler<QueryType, VariablesType>(req, res, handler, p),
       )
-      console.log('Request:', loggedRequest)
-      console.log('Handler:', {
-        operationType,
-        operationName: expectedOperationName,
-        predicate: handler.predicate,
-      })
-      console.log('Response:', loggedResponse)
-      console.groupEnd()
     },
 
     getMetaInfo() {
@@ -242,7 +336,8 @@ const createGraphQLScopedHandler = (
   ): RequestHandler<
     GraphQLMockedRequest<VariablesType>,
     GraphQLMockedContext<QueryType>,
-    GraphQLRequestParsedResult<VariablesType>
+    GraphQLRequestParsedResult<VariablesType>,
+    GraphQLPublicRequest<VariablesType>
   > => {
     return graphQLRequestHandler(
       expectedOperationType,
@@ -259,7 +354,8 @@ const createGraphQLOperationHandler = (mask: Mask) => {
   ): RequestHandler<
     GraphQLMockedRequest<VariablesType>,
     GraphQLMockedContext<QueryType>,
-    GraphQLRequestParsedResult<VariablesType>
+    GraphQLRequestParsedResult<VariablesType>,
+    GraphQLPublicRequest<VariablesType>
   > => {
     return graphQLRequestHandler('all', new RegExp('.*'), mask, resolver)
   }

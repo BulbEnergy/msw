@@ -4,20 +4,14 @@ import {
   MockedRequest,
   defaultContext,
 } from './handlers/requestHandler'
-import { MockedResponse, response } from '../response'
+import { MockedResponse, response as baseResponse } from '../response'
+import { BatchHandler } from './handlers/batchHandler'
 
-interface ResponsePayload {
+export interface ResponsePayload {
   response: MockedResponse | null
   handler: RequestHandler<any, any> | null
   publicRequest?: any
   parsedRequest?: any
-}
-
-interface ReducedHandlersPayload {
-  requestHandler?: RequestHandler<any, any>
-  parsedRequest?: any
-  mockedResponse: MockedResponse | null
-  publicRequest?: any
 }
 
 /**
@@ -29,13 +23,14 @@ export const getResponse = async <
 >(
   req: R,
   handlers: H,
+  batchHandler: BatchHandler,
 ): Promise<ResponsePayload> => {
   const relevantHandlers = handlers
     .filter((requestHandler) => {
       // Skip a handler if it has been already used for a one-time response.
       return !requestHandler.shouldSkip
     })
-    .map<[RequestHandler<any, any>, any]>((requestHandler) => {
+    .map<[RequestHandler<any, any>, any, boolean]>((requestHandler) => {
       // Parse the captured request to get additional information.
       // Make the predicate function accept all the necessary information
       // to decide on the interception.
@@ -43,13 +38,12 @@ export const getResponse = async <
         ? requestHandler.parse(req)
         : null
 
-      return [requestHandler, parsedRequest]
+      const isRelevant = requestHandler.predicate(req, parsedRequest)
+      return [requestHandler, parsedRequest, isRelevant]
     })
-    .filter(([requestHandler, parsedRequest]) => {
-      return requestHandler.predicate(req, parsedRequest)
-    })
+    .filter(([, , isRelevant]) => isRelevant)
 
-  if (relevantHandlers.length == 0) {
+  if (relevantHandlers.length === 0) {
     // Handle a scenario when a request has no relevant request handlers.
     // In that case it would be bypassed (performed as-is).
     return {
@@ -58,22 +52,9 @@ export const getResponse = async <
     }
   }
 
-  const {
-    requestHandler,
-    parsedRequest,
-    mockedResponse,
-    publicRequest,
-  } = await relevantHandlers.reduce<Promise<ReducedHandlersPayload>>(
-    async (asyncAcc, [requestHandler, parsedRequest]) => {
-      // Now the reduce function is async so we need to await if response was found
-      const acc = await asyncAcc
-
-      // If a first not empty response was found we'll stop evaluating other requests
-      if (acc.requestHandler) {
-        return acc
-      }
-
-      const { getPublicRequest, defineContext, resolver } = requestHandler
+  const responsePayloads: ResponsePayload[] = await Promise.all(
+    relevantHandlers.map(async ([handler, parsedRequest]) => {
+      const { getPublicRequest, defineContext, resolver } = handler
 
       const publicRequest = getPublicRequest
         ? getPublicRequest(req, parsedRequest)
@@ -83,42 +64,25 @@ export const getResponse = async <
         ? defineContext(publicRequest)
         : defaultContext
 
-      const mockedResponse = await resolver(publicRequest, response, context)
+      const response = ((await resolver(
+        publicRequest,
+        baseResponse,
+        context,
+      )) || null) as MockedResponse
 
-      if (!mockedResponse) {
-        return acc
-      }
-
-      if (mockedResponse && mockedResponse.once) {
-        // When responded with a one-time response, match the relevant request handler
-        // as skipped, so it cannot affect the captured requests anymore.
-        requestHandler.shouldSkip = true
-      }
+      handler.shouldSkip = response?.once
 
       return {
-        requestHandler,
+        handler,
+        response,
         parsedRequest,
-        mockedResponse,
         publicRequest,
       }
-    },
-    Promise.resolve({ mockedResponse: null }),
+    }),
   )
 
-  // Although reducing a list of relevant request handlers, it's possible
-  // that in the end there will be no handler associted with the request
-  // (i.e. if relevant handlers are fall-through).
-  if (!requestHandler) {
-    return {
-      handler: null,
-      response: null,
-    }
-  }
-
-  return {
-    handler: requestHandler,
-    response: mockedResponse,
-    publicRequest,
-    parsedRequest,
-  }
+  return batchHandler.handler(req, responsePayloads, {
+    handler: null,
+    response: null,
+  })
 }

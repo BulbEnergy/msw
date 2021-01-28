@@ -15,6 +15,10 @@ import * as requestHandlerUtils from '../utils/handlers/requestHandlerUtils'
 import { onUnhandledRequest } from '../utils/request/onUnhandledRequest'
 import { SetupServerApi } from './glossary'
 import { SharedOptions } from '../sharedOptions'
+import {
+  BatchHandler,
+  defaultBatchHandler,
+} from '../utils/handlers/batchHandler'
 
 const DEFAULT_LISTEN_OPTIONS: SharedOptions = {
   onUnhandledRequest: 'bypass',
@@ -49,6 +53,8 @@ export function createSetupServer(...interceptors: Interceptor[]) {
     // Store the list of request handlers for the current server instance,
     // so it could be modified at a runtime.
     let currentHandlers: RequestHandlersList = [...requestHandlers]
+
+    const batchHandler: BatchHandler = defaultBatchHandler
 
     return {
       listen(options) {
@@ -96,7 +102,11 @@ export function createSetupServer(...interceptors: Interceptor[]) {
             return
           }
 
-          const { response } = await getResponse(mockedRequest, currentHandlers)
+          const { response } = await getResponse(
+            mockedRequest,
+            currentHandlers,
+            batchHandler,
+          )
 
           if (!response) {
             onUnhandledRequest(

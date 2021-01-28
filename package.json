@@ -1,5 +1,5 @@
 {
-  "name": "msw",
+  "name": "@bulb/msw",
   "version": "0.22.3",
   "description": "Seamless REST/GraphQL API mocking library for browser and Node.",
   "main": "lib/umd/index.js",
@@ -33,7 +33,7 @@
   "homepage": "https://mswjs.io",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mswjs/msw"
+    "url": "https://github.com/BulbEnergy/msw"
   },
   "author": {
     "name": "Artem Zakharchenko",

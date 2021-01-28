@@ -61,7 +61,7 @@ const createRestHandler = (method: RESTMethods) => {
   >(
     mask: Mask,
     resolver: ResponseResolver<
-      MockedRequest<RequestBodyType, RequestParamsType>,
+      MockedRequest<RequestBodyType, RequestParams>,
       typeof restContext,
       ResponseBodyType
     >,

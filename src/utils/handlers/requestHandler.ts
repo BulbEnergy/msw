@@ -98,7 +98,7 @@ export interface RequestHandler<
   /**
    * Returns a mocked response object to the captured request.
    */
-  resolver: ResponseResolver<RequestType, ContextType, ResponseBodyType>
+  resolver: ResponseResolver<PublicRequest, ContextType, ResponseBodyType>
 
   /**
    * Returns a map of context utility functions available

@@ -71,7 +71,7 @@ export const handleRequestWith = (
         handler,
         publicRequest,
         parsedRequest,
-      } = await getResponse(req, context.requestHandlers)
+      } = await getResponse(req, context.requestHandlers, context.batchHandler)
 
       // Handle a scenario when there is no request handler
       // found for a given request.
