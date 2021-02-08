@@ -37,4 +37,3 @@ export {
   GraphQLRequestParsedResult,
 } from './graphql'
 export { matchRequestUrl } from './utils/matching/matchRequestUrl'
-export { ResponsePayload } from './utils/getResponse'

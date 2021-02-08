@@ -81,8 +81,10 @@ export const getResponse = async <
     }),
   )
 
-  return batchHandler.handler(req, responsePayloads, {
-    handler: null,
-    response: null,
-  })
+  return (
+    batchHandler.handler(req, responsePayloads) || {
+      handler: null,
+      response: null,
+    }
+  )
 }

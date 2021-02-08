@@ -1,4 +1,4 @@
-import { setupWorker, graphql, ResponsePayload } from 'msw'
+import { setupWorker, graphql } from 'msw'
 
 const GET_USER_QUERY = `
     query GetUser($id: String!) {
@@ -29,32 +29,6 @@ const worker = setupWorker(
   }),
 )
 
-worker.setBatchHandler({
-  handler: (res, responsePayloads: ResponsePayload[]) => {
-    const basePayload = responsePayloads[0]
-
-    if (Array.isArray(res.body)) {
-      const bodies = responsePayloads
-        .map((payload) => {
-          return payload.response.body
-            ? JSON.parse(payload.response.body)
-            : undefined
-        })
-        .filter((b) => !!b)
-
-      const newBodies = JSON.stringify(bodies)
-
-      return {
-        ...basePayload,
-        response: {
-          ...basePayload.response,
-          body: newBodies,
-        },
-      }
-    } else {
-      return basePayload
-    }
-  },
-})
+worker.setBatchHandler(graphql.batchHandler)
 
 worker.start()

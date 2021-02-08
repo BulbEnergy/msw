@@ -2,15 +2,15 @@ import { ResponsePayload } from '../getResponse'
 import { MockedRequest } from './requestHandler'
 
 export interface BatchHandler {
-  handler: (
-    req: MockedRequest,
-    payloads: ResponsePayload[],
-    fallback: ResponsePayload,
-  ) => ResponsePayload
+  handler: (req: MockedRequest, payloads: ResponsePayload[]) => ResponsePayload
 }
 
 export const defaultBatchHandler: BatchHandler = {
-  handler: (req, payloads, fallback) => {
-    return payloads.find((p) => !!p.response) || fallback
+  handler: (req, payloads) => {
+    return (
+      payloads.find(
+        ({ response }) => response !== null && response !== undefined,
+      ) || payloads[0]
+    )
   },
 }

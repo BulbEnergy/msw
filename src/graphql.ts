@@ -22,6 +22,8 @@ import { jsonParse } from './utils/internal/jsonParse'
 import { matchRequestUrl } from './utils/matching/matchRequestUrl'
 import { getCallFrame } from './utils/internal/getCallFrame'
 import { runOrFind, runOrMap } from './utils/fp'
+import { BatchHandler } from './utils/handlers/batchHandler'
+import { ResponsePayload } from './utils/getResponse'
 
 type ExpectedOperationTypeNode = OperationTypeNode | 'all'
 
@@ -207,6 +209,40 @@ const logHandler = <QueryType, VariablesType = Record<string, any>>(
   console.groupEnd()
 }
 
+export const batchHandler: BatchHandler = {
+  handler: (res, responsePayloads: ResponsePayload[]) => {
+    const basePayload =
+      responsePayloads.find(
+        ({ response }) => response !== null && response !== undefined,
+      ) || responsePayloads[0]
+
+    if (Array.isArray(res.body)) {
+      const bodies = responsePayloads
+        .map((payload) => {
+          return payload?.response?.body
+            ? JSON.parse(payload.response.body)
+            : undefined
+        })
+        .filter((b) => !!b)
+
+      const newBodies = JSON.stringify(bodies)
+
+      return {
+        ...basePayload,
+        response: {
+          status: 200,
+          statusText: 'OK',
+          headers: res.headers,
+          once: false,
+          ...basePayload.response,
+          body: newBodies,
+        },
+      }
+    }
+    return basePayload
+  },
+}
+
 function graphQLRequestHandler<QueryType, VariablesType = Record<string, any>>(
   expectedOperationType: ExpectedOperationTypeNode,
   expectedOperationName: GraphQLRequestHandlerSelector,
@@ -376,6 +412,7 @@ function createGraphQLLink(uri: Mask): typeof graphqlStandardHandlers {
 }
 
 export const graphql = {
+  batchHandler,
   ...graphqlStandardHandlers,
   link: createGraphQLLink,
 }
