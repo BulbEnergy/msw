@@ -40,7 +40,11 @@ jobs:
             yarn --version
       - run:
           name: Installing dependencies
-          command: yarn install --frozen-lockfile
+          command: |
+            echo "//bulbenergy.jfrog.io/bulbenergy/api/npm/npm/:_password=$ARTIFACTORY_TOKEN" >> ~/.npmrc
+            echo "//bulbenergy.jfrog.io/bulbenergy/api/npm/npm/:username=circleci" >> ~/.npmrc
+            echo "//bulbenergy.jfrog.io/bulbenergy/api/npm/npm/:always-auth=true" >> ~/.npmrc
+            yarn install --frozen-lockfile
       - save_cache:
           name: Caching dependencies
           key: v1-deps-{{ .Branch }}-{{ checksum "yarn.lock" }}
@@ -105,18 +109,22 @@ workflows:
   version: 2
   release:
     jobs:
-      - bootstrap
-
+      - bootstrap:
+          context: bulbenrg-default
       - build:
+          context: bulbenrg-default
           requires:
             - bootstrap
       - test-unit:
+          context: bulbenrg-default
           requires:
             - bootstrap
 
       - test-integration:
+          context: bulbenrg-default
           requires:
             - build
       - test-smoke:
+          context: bulbenrg-default
           requires:
             - build
