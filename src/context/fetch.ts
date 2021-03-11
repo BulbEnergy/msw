@@ -50,3 +50,15 @@ export const fetch = (
 
   return useFetch(input.url.href, compliantRequest)
 }
+
+export const fetchNoBypass = (input: MockedRequest) => {
+  const requestParameters: RequestInit = createFetchRequestParameters(input)
+
+  const headers = new Headers(input.headers)
+
+  const params = {
+    ...requestParameters,
+    headers: headers.getAllHeaders(),
+  }
+  return useFetch(input.url.href, params)
+}

@@ -5,6 +5,7 @@ import {
   RequestInterceptor,
   MockedResponse as MockedInterceptedResponse,
   Interceptor,
+  InterceptedRequest,
 } from 'node-request-interceptor'
 import { RequestHandlersList } from '../setupWorker/glossary'
 import { MockedRequest } from '../utils/handlers/requestHandler'
@@ -15,9 +16,33 @@ import * as requestHandlerUtils from '../utils/handlers/requestHandlerUtils'
 import { onUnhandledRequest } from '../utils/request/onUnhandledRequest'
 import { SetupServerApi } from './glossary'
 import { SharedOptions } from '../sharedOptions'
+import { fetchNoBypass } from '../context/fetch'
 
 const DEFAULT_LISTEN_OPTIONS: SharedOptions = {
   onUnhandledRequest: 'bypass',
+}
+
+function createMockRequest(req: InterceptedRequest, body: any): MockedRequest {
+  const requestHeaders = new Headers(flattenHeadersObject(req.headers || {}))
+  return {
+    url: req.url,
+    method: req.method,
+    // Parse the request's body based on the "Content-Type" header.
+    body: parseBody(body, requestHeaders),
+    headers: requestHeaders,
+    cookies: {},
+    params: {},
+    redirect: 'manual',
+    referrer: '',
+    keepalive: false,
+    cache: 'default',
+    mode: 'cors',
+    referrerPolicy: 'no-referrer',
+    integrity: '',
+    destination: 'document',
+    bodyUsed: false,
+    credentials: 'same-origin',
+  }
 }
 
 /**
@@ -64,25 +89,33 @@ export function createSetupServer(...interceptors: Interceptor[]) {
           )
           const requestCookieString = requestHeaders.get('cookie')
 
-          const mockedRequest: MockedRequest = {
-            url: req.url,
-            method: req.method,
-            // Parse the request's body based on the "Content-Type" header.
-            body: parseBody(req.body, requestHeaders),
-            headers: requestHeaders,
-            cookies: {},
-            params: {},
-            redirect: 'manual',
-            referrer: '',
-            keepalive: false,
-            cache: 'default',
-            mode: 'cors',
-            referrerPolicy: 'no-referrer',
-            integrity: '',
-            destination: 'document',
-            bodyUsed: false,
-            credentials: 'same-origin',
+          const parsedBody = parseBody(req.body, requestHeaders)
+
+          if (Array.isArray(parsedBody)) {
+            const mockedRequests = parsedBody.map((body) => {
+              return createMockRequest(req, body)
+            })
+
+            const results = await Promise.all(
+              mockedRequests.map(async (req) => {
+                const result = await fetchNoBypass(req)
+                try {
+                  return await result.json()
+                } catch (e) {
+                  return { errors: [e] }
+                }
+              }),
+            )
+
+            return Promise.resolve<MockedInterceptedResponse>({
+              body: JSON.stringify(results),
+              status: 200,
+              statusText: 'OK',
+              headers: {},
+            })
           }
+
+          const mockedRequest = createMockRequest(req, req.body)
 
           if (requestCookieString) {
             // Set mocked request cookies from the `cookie` header of the original request.
